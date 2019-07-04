@@ -160,3 +160,8 @@ About
 
 # idea
 .idea/
+
+cancer_models
+logs
+models
+workdir
