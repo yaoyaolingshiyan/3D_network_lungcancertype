@@ -1,7 +1,7 @@
 # -*- coding:utf-8 -*-
 import math
 
-__author__ = 'Microcosm'
+__author__ = 'zmy'
 
 import cv2
 # from find_obj import filter_matches,explore_match

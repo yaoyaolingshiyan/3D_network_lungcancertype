@@ -1,8 +1,8 @@
 import cv2
 import numpy as np
 
-from circle_profile import profile_processing
-from sift_tag_picture import sift_dicom_jpg
+from pro_step_circle_profile import profile_processing
+from pro_step_sift_tag_picture import sift_dicom_jpg
 
 
 class recognize_circle:
@@ -133,6 +133,11 @@ class recognize_circle:
 
 
 if __name__ == "__main__":
-    path = "D:/Mywork/医学图像标记代码/李奎权-1-106.jpg"
-    rc = recognize_circle(path)
-    circle = rc.get_circle()
+    path = "D:/Mywork/image_coord_regenerate/孙俊杰-1-131.jpg"
+    sdj = sift_dicom_jpg(path)
+    img = sdj.do_match()
+    cv2.imshow('img', img)
+    cv2.waitKey()
+    cv2.destroyAllWindows()
+    # rc = recognize_circle(path)
+    # circle = rc.get_circle()

@@ -1,9 +1,10 @@
-import settings
+import base_settings
 import numpy
 import pydicom
 import os
 import cv2
 import glob
+import pandas
 import matplotlib.pyplot as plt
 from skimage.segmentation import clear_border
 from skimage.measure import label, regionprops
@@ -16,12 +17,11 @@ from scipy import ndimage as ndi
 def load_patient(src_dir):
     # src_dir是病人CT文件夹地址
     slices = [pydicom.read_file(src_dir + '/' + s) for s in os.listdir(src_dir)]
-    slices.sort(key=lambda x: int(x.ImagePositionPatient[2]))
+    slices.sort(key=lambda x: int(x.InstanceNumber))
     try:
         slice_thickness = numpy.abs(slices[0].ImagePositionPatient[2] - slices[1].ImagePositionPatient[2])
     except:
         slice_thickness = numpy.abs(slices[0].SliceLocation - slices[1].SliceLocation)
-
     for s in slices:
         s.SliceThickness = slice_thickness
 
@@ -30,15 +30,8 @@ def load_patient(src_dir):
 # 提取CT图像素值（-4000，4000），CT图的像素值是由HU值表示的
 def get_pixels_hu(slices):
     image = numpy.stack([s.pixel_array for s in slices])
-    # Convert to int16 (from sometimes int16)
-    # should be possible as values should always be low enough(<32k)
     image = image.astype(numpy.int16)
-    # Set outside-of-scan pixels to 0
-    # The intercept is usually -1024,so air is approximately 0
-    # CT扫描边界之外的灰度值固定为-2000(dicom和mhd都是这个值)。第一步是设定这些值为0，当前对应为空气（值为0）
     image[image == -2000] = 0
-
-    # Convert to Hounsfield units (HU)
     for slice_number in range(len(slices)):
         intercept = slices[slice_number].RescaleIntercept
         slope = slices[slice_number].RescaleSlope
@@ -46,13 +39,14 @@ def get_pixels_hu(slices):
             image[slice_number] = slope * image[slice_number].astype(numpy.float64)
             image[slice_number] = image[slice_number].astype(numpy.int16)
         image[slice_number] += numpy.int16(intercept)
-
     return numpy.array(image, dtype=numpy.int16)
 
 # 将输入图像的像素值（-1024，2000）归一化到0-1之间
 def normalize_hu(image):
-    MIN_BOUND = -1000.0
-    MAX_BOUND = 400.0
+    # MIN_BOUND = -1000.0
+    # MAX_BOUND = 400.0
+    MIN_BOUND = -1350.0
+    MAX_BOUND = 150.0
     image = (image - MIN_BOUND) / (MAX_BOUND - MIN_BOUND)
     image[image > 1] = 1.
     image[image < 0] = 0.
@@ -68,6 +62,8 @@ def look_HU(pixels):
 
 # 图像重采样
 def rescale_patient_images(images_zyx, org_spacing_xyz, target_voxel_mm, is_mask_image=False, verbose=False):
+
+    have_three = False
     if verbose:
         print("Spacing: ", org_spacing_xyz)
         print("init_images_zyx_Shape: ", images_zyx.shape)
@@ -89,13 +85,14 @@ def rescale_patient_images(images_zyx, org_spacing_xyz, target_voxel_mm, is_mask
     resize_x = float(org_spacing_xyz[0]) / float(target_voxel_mm)
     resize_y = float(org_spacing_xyz[1]) / float(target_voxel_mm)
     # cv2 can handle max 512 channels..
-    if res.shape[2] > 512:
+    if res.shape[2] > 512 and res.shape[2] <= 1024:
         # 变成zyx维度顺序（873，512，512）
         # 因为res的z轴维度（CT图像数）多于512张，cv2无法一次处理，所以分部分处理
         res = res.swapaxes(0, 2)
         # print('res.shape:', res.shape)
         res1 = res[:512]
         # print('res1.shape:', res1.shape)
+
         res2 = res[512:]
         # print('res2.shape:', res2.shape)
         # xyz维度顺序(512,512,512)
@@ -110,9 +107,69 @@ def rescale_patient_images(images_zyx, org_spacing_xyz, target_voxel_mm, is_mask
         res1 = res1.swapaxes(0, 2)
         res2 = res2.swapaxes(0, 2)
         res = numpy.vstack([res1, res2])
-        # print('res_vstack_shape:', res.shape)
-        # xyz维度，res:(500,500,873)
         res = res.swapaxes(0, 2)
+
+    elif res.shape[2] > 1024 and res.shape[2] <= 1536:
+        # 变成zyx维度顺序（873，512，512）
+        # 因为res的z轴维度（CT图像数）多于512张，cv2无法一次处理，所以分部分处理
+        res = res.swapaxes(0, 2)
+        # print('res.shape:', res.shape)
+        res1 = res[:512]
+        # print('res1.shape:', res1.shape)
+
+        res2 = res[512:1024]
+        res3 = res[1024:]
+        # print('res2.shape:', res2.shape)
+        # xyz维度顺序(512,512,512)
+        res1 = res1.swapaxes(0, 2)
+        # xyz维度顺序(512,512,361)
+        res2 = res2.swapaxes(0, 2)
+        res3 = res3.swapaxes(0, 2)
+        res1 = cv2.resize(res1, dsize=None, fx=resize_x, fy=resize_y, interpolation=interpolation)
+        # print('res1_resized_shape:', res1.shape)
+        res2 = cv2.resize(res2, dsize=None, fx=resize_x, fy=resize_y, interpolation=interpolation)
+        res3 = cv2.resize(res3, dsize=None, fx=resize_x, fy=resize_y, interpolation=interpolation)
+        # print('res2_resized_shape:', res2.shape)
+        # zyx维度顺序：res1:(512,500,500), res2:(361,500,500)
+        res1 = res1.swapaxes(0, 2)
+        res2 = res2.swapaxes(0, 2)
+        res3 = res3.swapaxes(0, 2)
+        res = numpy.vstack([res1, res2, res3])
+        res = res.swapaxes(0, 2)
+    elif res.shape[2] > 1536 and res.shape[2] <= 2048:
+        # 变成zyx维度顺序（873，512，512）
+        # 因为res的z轴维度（CT图像数）多于512张，cv2无法一次处理，所以分部分处理
+        res = res.swapaxes(0, 2)
+        # print('res.shape:', res.shape)
+        res1 = res[:512]
+        # print('res1.shape:', res1.shape)
+
+        res2 = res[512:1024]
+        res3 = res[1024:1536]
+        res4 = res[1536:]
+        # print('res2.shape:', res2.shape)
+        # xyz维度顺序(512,512,512)
+        res1 = res1.swapaxes(0, 2)
+        # xyz维度顺序(512,512,361)
+        res2 = res2.swapaxes(0, 2)
+        res3 = res3.swapaxes(0, 2)
+        res4 = res4.swapaxes(0, 2)
+        res1 = cv2.resize(res1, dsize=None, fx=resize_x, fy=resize_y, interpolation=interpolation)
+        # print('res1_resized_shape:', res1.shape)
+        res2 = cv2.resize(res2, dsize=None, fx=resize_x, fy=resize_y, interpolation=interpolation)
+        res3 = cv2.resize(res3, dsize=None, fx=resize_x, fy=resize_y, interpolation=interpolation)
+        res4 = cv2.resize(res4, dsize=None, fx=resize_x, fy=resize_y, interpolation=interpolation)
+        # print('res2_resized_shape:', res2.shape)
+        # zyx维度顺序：res1:(512,500,500), res2:(361,500,500)
+        res1 = res1.swapaxes(0, 2)
+        res2 = res2.swapaxes(0, 2)
+        res3 = res3.swapaxes(0, 2)
+        res4 = res4.swapaxes(0, 2)
+        res = numpy.vstack([res1, res2, res3, res4])
+        res = res.swapaxes(0, 2)
+    elif res.shape[2] > 2048:
+        print('the number is to big, can not solve!')
+        return None
     else:
         res = cv2.resize(res, dsize=None, fx=resize_x, fy=resize_y, interpolation=interpolation)
 
@@ -176,7 +233,7 @@ def get_segmented_lungs(im, plot=True):
 # 返回一个（349，330，330）的三维矩阵（z,y,x）
 def load_patient_images(patient_id, base_dir=None, wildcard="*.*", exclude_wildcards=[]):
     if base_dir == None:
-        base_dir = settings.DICOM_EXTRACT_DIR
+        base_dir = base_settings.DICOM_EXTRACT_DIR
     # D:/Mywork/data/extracted_image/patient_id/
     src_dir = base_dir + patient_id + "/"
 
@@ -213,4 +270,73 @@ def load_cube_img(src_path, rows, cols, size):
             # res[0] = img[0:48,0:48], res[1] = img[0:48, 48:96], res[7] = [0:48, 336:384]
             res[row * cols + col] = img[src_y:src_y + img_height, src_x:src_x + img_width]
 
+    return res
+
+
+# 得到无重复的有坐标提取信息的病人id
+def get_new_right_axis_patient():
+    src_dir = 'D:/Mywork/image_coord_regenerate/new_coord/new_right_axis.txt'
+    id_list = []
+    f = open(src_dir, 'rb')
+    line = f.readline().decode('UTF-8')
+    while line:
+        patient_id = str(line.split(':')[0])
+
+        if patient_id not in id_list:
+            id_list.append(patient_id)
+        line = f.readline().decode('UTF-8')
+    f.close()
+    return id_list
+
+
+PATIENT_LIST = None
+def get_patient_fold(patient_id, submission_set_neg=False):
+    global PATIENT_LIST
+    if PATIENT_LIST is None:
+        df = pandas.read_csv("resources/stage1_labels.csv")
+        PATIENT_LIST = df["id"].tolist()
+
+    if submission_set_neg:
+        if patient_id not in PATIENT_LIST:
+            return -1
+
+    res = PATIENT_LIST.index(patient_id)
+    res %= 6
+    return res
+
+
+def rescale_patient_images2(images_zyx, target_shape, verbose=False):
+    if verbose:
+        print("Target: ", target_shape)
+        print("Shape: ", images_zyx.shape)
+
+    # print "Resizing dim z"
+    resize_x = 1.0
+    interpolation = cv2.INTER_NEAREST if False else cv2.INTER_LINEAR
+    res = cv2.resize(images_zyx, dsize=(target_shape[1], target_shape[0]), interpolation=interpolation)  # opencv assumes y, x, channels umpy array, so y = z pfff
+    # print "Shape is now : ", res.shape
+
+    res = res.swapaxes(0, 2)
+    res = res.swapaxes(0, 1)
+
+    # cv2 can handle max 512 channels..
+    if res.shape[2] > 512:
+        res = res.swapaxes(0, 2)
+        res1 = res[:256]
+        res2 = res[256:]
+        res1 = res1.swapaxes(0, 2)
+        res2 = res2.swapaxes(0, 2)
+        res1 = cv2.resize(res1, dsize=(target_shape[2], target_shape[1]), interpolation=interpolation)
+        res2 = cv2.resize(res2, dsize=(target_shape[2], target_shape[1]), interpolation=interpolation)
+        res1 = res1.swapaxes(0, 2)
+        res2 = res2.swapaxes(0, 2)
+        res = numpy.vstack([res1, res2])
+        res = res.swapaxes(0, 2)
+    else:
+        res = cv2.resize(res, dsize=(target_shape[2], target_shape[1]), interpolation=interpolation)
+
+    res = res.swapaxes(0, 2)
+    res = res.swapaxes(2, 1)
+    if verbose:
+        print("Shape after: ", res.shape)
     return res

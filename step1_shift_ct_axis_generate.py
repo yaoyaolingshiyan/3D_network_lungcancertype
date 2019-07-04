@@ -1,6 +1,7 @@
 import os
 import shutil
 import numpy
+import base_dicom_process
 
 # 将某个目录下的CT文件转存到一起
 def save_ct():
@@ -35,10 +36,9 @@ def save_ct():
 # 该函数使用new_right_axis.txt
 # use_coord.txt
 def filter_coord_one():
-    ct_src_dir = 'D:/Mywork/data/src_dicom/'
-    extract_img_dir = 'D:/Mywork/data/extracted_image/'
-    src_dir = 'D:/Mywork/coord/new_right_axis.txt'
-    ct_list = os.listdir(extract_img_dir)
+    ct_src_dir = 'F:/src_dicom/'
+    src_dir = 'D:/Mywork/image_coord_regenerate/new_coord/new_right_axis.txt'
+    ct_list = base_dicom_process.get_new_right_axis_patient()
     print(ct_list)
     print(len(ct_list))
     f = open(src_dir, 'rb')
@@ -53,10 +53,14 @@ def filter_coord_one():
             coord_z = int(line.split(':')[1].split('-')[-1].split('.')[0])
             coord_x = int(line.split(':')[-1].split('-')[0])
             coord_y = int(line.split(':')[-1].split('-')[1])
-            new_coord_z = len(number_ct)-coord_z
-            new_line = patientid + ':' + str(new_coord_z) + ':' + str(coord_x) + ':' + str(coord_y)+':'+lung_type
-            with open('D:/Mywork/coord/use_coord.txt', "a", encoding="UTF-8") as target:
-                target.write(new_line+'\n')
+            coord_r = int(line.split(':')[-1].split('-')[-1])
+            if lung_type == 'SCLC':
+                print(patientid, 'is SCLC!***************************')
+            # new_coord_z = len(number_ct)-coord_z
+            if lung_type in ['1', '2', '3', '4', '5']:
+                new_line = patientid + ':' + str(coord_z) + ':' + str(coord_x) + ':' + str(coord_y)+':'+lung_type+':'+str(coord_r)
+                with open('D:/Mywork/image_coord_regenerate/new_coord/use_coord.txt', "a", encoding="UTF-8") as target:
+                    target.write(new_line+'\n')
         line = f.readline().decode('UTF-8')
 
     f.close()
@@ -120,7 +124,7 @@ def get_zxy(patientID):
 
 # 得到无重复的有坐标提取信息的病人id
 def get_usecoord_patient():
-    src_dir = 'D:/Mywork/coord/use_coord.txt'
+    src_dir = 'D:/Mywork/coord/transer_coord.txt'
     id_list = []
     f = open(src_dir, 'rb')
     line = f.readline().decode('UTF-8')
@@ -135,7 +139,7 @@ def get_usecoord_patient():
 
 # transer_coord.txt
 def transform_type(id_list):
-    type_list = ['1', '2', '3', '4']
+    type_list = ['1', '2', '3', '4', '5']
     m_list = []
     l_list = []
     for idd in id_list:
@@ -144,7 +148,7 @@ def transform_type(id_list):
         for co_zxyt in coord_zxyt:
             str1 = co_zxyt[-1].replace('\n', '').replace('\r', '')
             print(str1)
-            if str1 in type_list:
+            if str1 in type_list and idd not in m_list:
                 m_list.append(idd)
                 l_list.append(str1)
                 break
@@ -166,9 +170,9 @@ def transform_type(id_list):
 
 if __name__ == '__main__':
     # 将CT文件以病人ID为文件夹命名存储到一起
-    save_ct()
+    # save_ct()
     # 针对批量坐标转换:改变Z坐标为 len（ct）-z : use_coord.txt
-    # filter_coord_one()
+    filter_coord_one()
     # 3、归一化肺癌类型，将'淋巴结'，'骨转移'等标签归类到0-5: transer_coord.txt
     # idlist = get_usecoord_patient()
     # print(idlist)

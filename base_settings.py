@@ -11,9 +11,30 @@ MEAN_PIXEL_VALUE_NODULE = 41
 LUNA_SUBSET_START_INDEX = 0
 SEGMENTER_IMG_SIZE = 320
 
+
+# create the folder name ndsb3 for saving the corresponding results
+BASE_DIR_SSD = "D:/everyproject/NDSB/kaggle_ndsb2017-master/ndsb3/"
+# create the folder name ndsb4 for placing the input data here
+BASE_DIR = "D:/everyproject/NDSB/kaggle_ndsb2017-master/ndsb4/"
+# place here extra data given by julian in his repository.
+EXTRA_DATA_DIR = "D:/everyproject/NDSB/kaggle_ndsb2017-master/kaggle_ndsb2017-master/resources/"
+# place here the kaggle data which will further（CT）
+NDSB3_RAW_SRC_DIR = BASE_DIR + "ndsb_raw/stage12/"
+# place here the LUNA16 database
+LUNA16_RAW_SRC_DIR = BASE_DIR + "luna_raw/"
+
+
+# all below directories are created for saving the corresponding results
+#  of the preprocessing and nodule detector script
+NDSB3_EXTRACTED_IMAGE_DIR = BASE_DIR_SSD + "ndsb3_extracted_images/"
+LUNA16_EXTRACTED_IMAGE_DIR = BASE_DIR_SSD + "luna16_extracted_images/"
+NDSB3_NODULE_DETECTION_DIR = BASE_DIR_SSD + "ndsb3_nodule_predictions/"
+LUNA_NODULE_DETECTION_DIR = BASE_DIR_SSD + "luna16_nodule_predictions/"
+LUNA_16_TRAIN_DIR = BASE_DIR_SSD+'luna_16_train_dir/'
+
 # 各数据地址
 BASE_DIR = 'D:/Mywork/'
-DICOM_SRC_DIR = 'D:/Mywork/data/src_dicom/'
+DICOM_SRC_DIR = 'I:/src_dicom/'
 DICOM_EXTRACT_DIR = 'D:/Mywork/data/extracted_image/'
 TRAIN_COORD = 'D:/Mywork/coord/'
 TRAIN_LABEL = 'D:/Mywork/data/generated_trainlabel/'

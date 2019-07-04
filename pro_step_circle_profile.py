@@ -60,7 +60,9 @@ class profile_processing:
             ori = cv2.resize(ori, (512, 512), interpolation=cv2.INTER_CUBIC)
 
         gray = cv2.cvtColor(ori, cv2.COLOR_BGR2GRAY)
-
+        cv2.imshow('mygray', gray)
+        cv2.waitKey()
+        cv2.destroyAllWindows()
         # 霍夫变换圆检测
         circles = cv2.HoughCircles(gray, cv2.HOUGH_GRADIENT, 1, 100, param1=100, param2=10, minRadius=150,
                                    maxRadius=250)
